@@ -153,8 +153,35 @@ static int write_tree_level(IndexEntry *entries, int count, const char *prefix, 
             e->name[sizeof(e->name) - 1] = '\0';
             i++;
         } else {
-            // Subdirectory case — handled in next commit
-            i++;
+            // Entries whose relative path contains '/' belong to a subdirectory.
+            // Extract the first path component as the subdir name.
+            char subdir[256];
+            size_t dir_len = slash - rel;
+            strncpy(subdir, rel, dir_len);
+            subdir[dir_len] = '\0';
+
+            // Build the full prefix for the recursive call
+            char new_prefix[512];
+            snprintf(new_prefix, sizeof(new_prefix), "%s%s/", prefix, subdir);
+
+            // Collect the contiguous run of entries belonging to this subdir
+            int j = i;
+            while (j < count && strncmp(entries[j].path + strlen(prefix), subdir, dir_len) == 0
+                   && entries[j].path[strlen(prefix) + dir_len] == '/') {
+                j++;
+            }
+
+            // Recurse: build a sub-tree for this directory and get its hash
+            ObjectID sub_id;
+            if (write_tree_level(entries + i, j - i, new_prefix, &sub_id) != 0) return -1;
+
+            TreeEntry *e = &tree.entries[tree.count++];
+            e->mode = 0040000; // directory mode
+            e->hash = sub_id;
+            strncpy(e->name, subdir, sizeof(e->name) - 1);
+            e->name[sizeof(e->name) - 1] = '\0';
+
+            i = j;
         }
     }
 
