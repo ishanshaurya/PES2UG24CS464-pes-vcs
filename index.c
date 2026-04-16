@@ -172,17 +172,20 @@ int index_save(const Index *index) {
     snprintf(tmp, sizeof(tmp), "%s.tmp", INDEX_FILE);
     FILE *f = fopen(tmp, "w");
     if (!f) return -1;
-    Index sorted = *index;
-    qsort(sorted.entries, sorted.count, sizeof(IndexEntry), compare_entries);
+    Index *sorted = malloc(sizeof(Index));
+    if (!sorted) { fclose(f); return -1; }
+    *sorted = *index;
+    qsort(sorted->entries, sorted->count, sizeof(IndexEntry), compare_entries);
     char hex[HASH_HEX_SIZE + 1];
-    for (int i = 0; i < sorted.count; i++) {
-        IndexEntry *e = &sorted.entries[i];
+    for (int i = 0; i < sorted->count; i++) {
+        IndexEntry *e = &sorted->entries[i];
         hash_to_hex(&e->hash, hex);
         fprintf(f, "%o %s %llu %u %s\n",
             e->mode, hex,
             (unsigned long long)e->mtime_sec,
             e->size, e->path);
     }
+    free(sorted);
     fflush(f);
     fsync(fileno(f));
     fclose(f);
