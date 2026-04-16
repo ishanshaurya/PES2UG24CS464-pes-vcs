@@ -198,9 +198,37 @@ int index_save(const Index *index) {
 //   - index_find                       : checking if the file is already staged
 //
 // Returns 0 on success, -1 on error.
+extern int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
+
 int index_add(Index *index, const char *path) {
-    // TODO: Implement file staging
-    // (See Lab Appendix for logical steps)
-    (void)index; (void)path;
-    return -1;
+    FILE *f = fopen(path, "rb");
+    if (!f) { fprintf(stderr, "error: cannot open '%s'\n", path); return -1; }
+    fseek(f, 0, SEEK_END);
+    size_t size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    void *data = malloc(size);
+    if (!data) { fclose(f); return -1; }
+    fread(data, 1, size, f);
+    fclose(f);
+
+    ObjectID hash;
+    if (object_write(OBJ_BLOB, data, size, &hash) != 0) { free(data); return -1; }
+    free(data);
+
+    struct stat st;
+    if (lstat(path, &st) != 0) return -1;
+
+    IndexEntry *e = index_find(index, path);
+    if (!e) {
+        if (index->count >= MAX_INDEX_ENTRIES) return -1;
+        e = &index->entries[index->count++];
+    }
+    e->mode = (st.st_mode & S_IXUSR) ? 0100755 : 0100644;
+    e->hash = hash;
+    e->mtime_sec = st.st_mtime;
+    e->size = (uint32_t)st.st_size;
+    strncpy(e->path, path, sizeof(e->path) - 1);
+    e->path[sizeof(e->path) - 1] = '\0';
+
+    return index_save(index);
 }
