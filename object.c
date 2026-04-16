@@ -189,8 +189,22 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
     compute_hash(buf, file_len, &computed);
     if (memcmp(computed.hash, id->hash, HASH_SIZE) != 0) { free(buf); return -1; }
 
-    // Placeholder: header parsing and data extraction in next commit
-    (void)type_out; (void)data_out; (void)len_out;
+    // Step 3: Parse header — find the '\0' separating header from data
+    uint8_t *null_pos = memchr(buf, '\0', file_len);
+    if (!null_pos) { free(buf); return -1; }
+
+    if (strncmp((char *)buf, "blob", 4) == 0)        *type_out = OBJ_BLOB;
+    else if (strncmp((char *)buf, "tree", 4) == 0)   *type_out = OBJ_TREE;
+    else if (strncmp((char *)buf, "commit", 6) == 0) *type_out = OBJ_COMMIT;
+    else { free(buf); return -1; }
+
+    // Step 5-6: Extract data portion after the null terminator
+    uint8_t *data_start = null_pos + 1;
+    *len_out = file_len - (data_start - buf);
+    *data_out = malloc(*len_out);
+    if (!*data_out) { free(buf); return -1; }
+    memcpy(*data_out, data_start, *len_out);
+
     free(buf);
     return 0;
 }
