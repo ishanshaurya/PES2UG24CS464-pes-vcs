@@ -217,6 +217,14 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     c.timestamp = (uint64_t)time(NULL);
     strncpy(c.message, message, sizeof(c.message) - 1);
 
-    (void)commit_id_out;
-    return -1;
+    // Step 4: Serialize Commit struct to text and write as OBJ_COMMIT
+    void *data;
+    size_t len;
+    if (commit_serialize(&c, &data, &len) != 0) return -1;
+    int ret = object_write(OBJ_COMMIT, data, len, commit_id_out);
+    free(data);
+    if (ret != 0) return -1;
+
+    // Step 5: Advance the current branch pointer to the new commit
+    return head_update(commit_id_out);
 }
