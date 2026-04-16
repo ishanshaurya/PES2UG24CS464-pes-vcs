@@ -196,7 +196,13 @@ int head_update(const ObjectID *new_commit) {
 int commit_create(const char *message, ObjectID *commit_id_out) {
     Commit c;
     memset(&c, 0, sizeof(c));
+
+    // Step 1: Build tree from current index and record the root tree hash
+    if (tree_from_index(&c.tree) != 0) {
+        fprintf(stderr, "error: failed to build tree from index\n");
+        return -1;
+    }
+
     (void)message; (void)commit_id_out;
-    // Steps: tree → parent → metadata → serialize → write → HEAD
     return -1;
 }
