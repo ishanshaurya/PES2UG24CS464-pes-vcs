@@ -136,7 +136,27 @@ static int write_tree_level(IndexEntry *entries, int count, const char *prefix, 
 static int write_tree_level(IndexEntry *entries, int count, const char *prefix, ObjectID *id_out) {
     Tree tree;
     tree.count = 0;
-    (void)entries; (void)count; (void)prefix; // filled in next commits
+
+    int i = 0;
+    while (i < count) {
+        const char *path = entries[i].path;
+        // Strip the already-processed prefix to get relative name
+        const char *rel = path + strlen(prefix);
+        const char *slash = strchr(rel, '/');
+
+        if (!slash) {
+            // File lives directly at this tree level — add as leaf entry
+            TreeEntry *e = &tree.entries[tree.count++];
+            e->mode = entries[i].mode;
+            e->hash = entries[i].hash;
+            strncpy(e->name, rel, sizeof(e->name) - 1);
+            e->name[sizeof(e->name) - 1] = '\0';
+            i++;
+        } else {
+            // Subdirectory case — handled in next commit
+            i++;
+        }
+    }
 
     void *data;
     size_t len;
