@@ -110,6 +110,16 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     // Step 2: Hash the full object (header + data)
     compute_hash(full, full_len, id_out);
 
+    // Step 3: Deduplication — skip write if object already stored
+    if (object_exists(id_out)) { free(full); return 0; }
+
+    // Step 4: Create shard directory (.pes/objects/XX/)
+    char hex[HASH_HEX_SIZE + 1];
+    hash_to_hex(id_out, hex);
+    char shard_dir[512];
+    snprintf(shard_dir, sizeof(shard_dir), "%s/%.2s", OBJECTS_DIR, hex);
+    mkdir(shard_dir, 0755);
+
     free(full);
     return 0;
 }
