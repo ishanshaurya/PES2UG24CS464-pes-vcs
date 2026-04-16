@@ -169,7 +169,28 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
 // The caller is responsible for calling free(*data_out).
 // Returns 0 on success, -1 on error (file not found, corrupt, etc.).
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
-    // TODO: Implement
-    (void)id; (void)type_out; (void)data_out; (void)len_out;
-    return -1;
+    // Step 1: Get path
+    char path[512];
+    object_path(id, path, sizeof(path));
+
+    // Step 2: Read entire file into buffer
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+    fseek(f, 0, SEEK_END);
+    size_t file_len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    uint8_t *buf = malloc(file_len);
+    if (!buf) { fclose(f); return -1; }
+    if (fread(buf, 1, file_len, f) != file_len) { fclose(f); free(buf); return -1; }
+    fclose(f);
+
+    // Step 4: Verify integrity — recompute SHA-256 and compare to requested hash
+    ObjectID computed;
+    compute_hash(buf, file_len, &computed);
+    if (memcmp(computed.hash, id->hash, HASH_SIZE) != 0) { free(buf); return -1; }
+
+    // Placeholder: header parsing and data extraction in next commit
+    (void)type_out; (void)data_out; (void)len_out;
+    free(buf);
+    return 0;
 }
