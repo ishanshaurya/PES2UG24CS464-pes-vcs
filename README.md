@@ -600,3 +600,20 @@ The following questions cover filesystem concepts beyond the implementation scop
 - **Git Internals** (Pro Git book): https://git-scm.com/book/en/v2/Git-Internals-Plumbing-and-Porcelain
 - **Git from the inside out**: https://codewords.recurse.com/issues/two/git-from-the-inside-out
 - **The Git Parable**: https://tom.preston-werner.com/2009/05/19/the-git-parable.html
+
+## Phase 5 & 6: Analysis Questions
+
+### Q5.1 — Implementing pes checkout
+To switch branches, three things must change in .pes/: HEAD must be updated to ref: refs/heads/<branch>, the working directory files must be replaced with the target branch's tree contents (by reading the commit → tree → blobs and writing them to disk), and the index must be updated to match the new tree. The complexity comes from handling files that exist in one branch but not the other — they must be created or deleted — and from preserving untracked files the user hasn't staged.
+
+### Q5.2 — Detecting dirty working directory conflicts
+For each file that differs between the current branch's tree and the target branch's tree, check the index entry for that file. If the index hash differs from HEAD's tree hash for that file, the user has staged changes. If the file's mtime or size on disk differs from the index entry, the user has unstaged modifications. If either condition is true for any file that would be overwritten by checkout, refuse and report a conflict.
+
+### Q5.3 — Detached HEAD
+In detached HEAD state, HEAD contains a commit hash directly instead of ref: refs/heads/<branch>. New commits are created and HEAD advances, but no branch pointer moves with them. If you then switch branches, those commits become unreachable. Recovery is possible by running pes branch <new-branch> <hash> if you remember the hash, or by checking the object store before garbage collection runs.
+
+### Q6.1 — Garbage Collection Algorithm
+Start from all branch refs in .pes/refs/heads/. For each ref, walk the commit chain following parent pointers. For each commit, collect its tree hash and recursively collect all blob and subtree hashes. Store all reachable hashes in a hash set. Scan every file in .pes/objects/ — any object not in the set is unreachable and can be deleted. For 100,000 commits across 50 branches with ~10 objects per commit, you'd visit roughly 1,000,000 objects.
+
+### Q6.2 — GC Race Condition
+A concurrent commit writes new blob objects to the store, then writes the commit object referencing them. If GC runs its reachability scan between these two steps, the new blobs exist but no commit references them yet — GC deletes them. When the commit then references those blobs, they're gone and the repository is corrupt. Git avoids this with a grace period — objects newer than 2 weeks are never deleted by GC, giving in-flight operations time to complete.
