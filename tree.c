@@ -15,6 +15,7 @@
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include "index.h"
 
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
@@ -129,9 +130,24 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //   - object_write    : save that binary buffer to the store as OBJ_TREE
 //
 // Returns 0 on success, -1 on error.
+// Forward declaration for the recursive helper
+static int write_tree_level(IndexEntry *entries, int count, const char *prefix, ObjectID *id_out);
+
+static int write_tree_level(IndexEntry *entries, int count, const char *prefix, ObjectID *id_out) {
+    Tree tree;
+    tree.count = 0;
+    (void)entries; (void)count; (void)prefix; // filled in next commits
+
+    void *data;
+    size_t len;
+    if (tree_serialize(&tree, &data, &len) != 0) return -1;
+    int ret = object_write(OBJ_TREE, data, len, id_out);
+    free(data);
+    return ret;
+}
+
 int tree_from_index(ObjectID *id_out) {
-    // TODO: Implement recursive tree building
-    // (See Lab Appendix for logical steps)
-    (void)id_out;
-    return -1;
+    Index idx;
+    if (index_load(&idx) != 0) return -1;
+    return write_tree_level(idx.entries, idx.count, "", id_out);
 }
